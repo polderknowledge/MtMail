@@ -19,6 +19,7 @@ use Zend\EventManager\EventManager;
 use Zend\EventManager\EventManagerAwareInterface;
 use Zend\EventManager\EventManagerInterface;
 use Zend\Mail\Message;
+use Zend\Mime\Mime;
 use Zend\View\Model\ModelInterface;
 use Zend\Mime\Message as MimeMessage;
 use Zend\Mime\Part as MimePart;
@@ -110,9 +111,9 @@ class Composer implements EventManagerAwareInterface
     /**
      * Build e-mail message
      *
-     * @param  TemplateInterface        $template
-     * @param  array                    $headers
-     * @param  ModelInterface           $viewModel
+     * @param  TemplateInterface $template
+     * @param  array $headers
+     * @param  ModelInterface $viewModel
      * @throws InvalidArgumentException if template is not string nor TemplateInterface
      * @return Message
      */
@@ -193,7 +194,7 @@ class Composer implements EventManagerAwareInterface
 
         return $event->getMessage();
     }
-    
+
 
     public function attachments(Message $message, array $attachments)
     {
@@ -235,11 +236,12 @@ class Composer implements EventManagerAwareInterface
 
             foreach ($attachments as $attachment) {
                 if (is_readable($attachment)) {
-                    $pathParts          = pathinfo($attachment);
+                    $pathParts = pathinfo($attachment);
                     $at = new MimePart(file_get_contents($attachment));
-                    $at->type           = $this->getType($pathParts['extension']);
-                    $at->filename       = $pathParts['filename'];
-                    $at->disposition    = Mime::DISPOSITION_ATTACHMENT;
+                    $at->type = $this->getType($pathParts['extension']);
+                    $at->filename = $pathParts['filename'] . '.' . $pathParts['extension'];
+                    $at->encoding = Mime::ENCODING_BASE64;
+                    $at->disposition = Mime::DISPOSITION_ATTACHMENT;
 
                     $message->getBody()->addPart($at);
                 }
@@ -248,13 +250,14 @@ class Composer implements EventManagerAwareInterface
             // force multipart/alternative content type
             if ($type != 'multipart/related') {
                 $message->getHeaders()->get('content-type')->setType('multipart/related')
-                    ->addParameter('boundary', $event->getBody()->getMime()->boundary());
+                    ->addParameter('boundary', $message->getBody()->getMime()->boundary());
             }
         }
         return $message;
     }
 
-    private function getType($ext) {
+    private function getType($ext)
+    {
         switch (strtolower($ext)) {
             case "pdf":
                 $type = 'application/pdf';
@@ -266,13 +269,13 @@ class Composer implements EventManagerAwareInterface
                 $type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
                 break;
             case "odt":
-                $type =  "application/vnd.oasis.opendocument.text";
+                $type = "application/vnd.oasis.opendocument.text";
                 break;
             case "gzip":
-                $type =  'application/gzip';
+                $type = 'application/gzip';
                 break;
             case "txt":
-                $type= 'application/text';
+                $type = 'application/text';
                 break;
             case "zip":
                 $type = 'application/zip';
@@ -282,6 +285,5 @@ class Composer implements EventManagerAwareInterface
         }
 
         return $type;
-    }
     }
 }
