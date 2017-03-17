@@ -9,12 +9,14 @@
 
 namespace MtMail\Service;
 
+use MtMail\Attachment\Attachment;
 use MtMail\Event\ComposerEvent;
 use MtMail\Exception\InvalidArgumentException;
 use MtMail\Renderer\RendererInterface;
 use MtMail\Template\HtmlTemplateInterface;
 use MtMail\Template\TemplateInterface;
 use MtMail\Template\TextTemplateInterface;
+use MtMail\Attachment\AttachmentInterface;
 use Zend\EventManager\EventManager;
 use Zend\EventManager\EventManagerAwareInterface;
 use Zend\EventManager\EventManagerInterface;
@@ -235,11 +237,10 @@ class Composer implements EventManagerAwareInterface
             }
 
             foreach ($attachments as $attachment) {
-                if (is_readable($attachment)) {
-                    $pathParts = pathinfo($attachment);
-                    $at = new MimePart(file_get_contents($attachment));
-                    $at->type = $this->getType($pathParts['extension']);
-                    $at->filename = $pathParts['filename'] . '.' . $pathParts['extension'];
+                if($attachment instanceof AttachmentInterface::class){
+                    $at = new MimePart($attachment->getContent());
+                    $at->type = $attachment->getType();
+                    $at->filename = $attachment->getFileName();
                     $at->encoding = Mime::ENCODING_BASE64;
                     $at->disposition = Mime::DISPOSITION_ATTACHMENT;
 
@@ -254,36 +255,5 @@ class Composer implements EventManagerAwareInterface
             }
         }
         return $message;
-    }
-
-    private function getType($ext)
-    {
-        switch (strtolower($ext)) {
-            case "pdf":
-                $type = 'application/pdf';
-                break;
-            case "doc":
-                $type = "application/msword";
-                break;
-            case "docx":
-                $type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-                break;
-            case "odt":
-                $type = "application/vnd.oasis.opendocument.text";
-                break;
-            case "gzip":
-                $type = 'application/gzip';
-                break;
-            case "txt":
-                $type = 'application/text';
-                break;
-            case "zip":
-                $type = 'application/zip';
-                break;
-            default:
-                $type = Mime::TYPE_OCTETSTREAM;
-        }
-
-        return $type;
     }
 }
