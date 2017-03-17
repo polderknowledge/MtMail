@@ -235,7 +235,7 @@ class Composer implements EventManagerAwareInterface
             }
 
             foreach ($attachments as $attachment) {
-                if($attachment instanceof AttachmentInterface::class){
+                if($attachment instanceof AttachmentInterface){
                     $at = new MimePart($attachment->getContent());
                     $at->type = $attachment->getType();
                     $at->filename = $attachment->getFileName();
