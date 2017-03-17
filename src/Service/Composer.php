@@ -9,12 +9,14 @@
 
 namespace MtMail\Service;
 
+use MtMail\Attachment\Attachment;
 use MtMail\Event\ComposerEvent;
 use MtMail\Exception\InvalidArgumentException;
 use MtMail\Renderer\RendererInterface;
 use MtMail\Template\HtmlTemplateInterface;
 use MtMail\Template\TemplateInterface;
 use MtMail\Template\TextTemplateInterface;
+use MtMail\Attachment\AttachmentInterface;
 use Zend\EventManager\EventManager;
 use Zend\EventManager\EventManagerAwareInterface;
 use Zend\EventManager\EventManagerInterface;
@@ -192,5 +194,64 @@ class Composer implements EventManagerAwareInterface
         $em->triggerEvent($event);
 
         return $event->getMessage();
+    }
+    
+    public function attachments(Message $message, array $attachments)
+    {
+        if (sizeof($attachments) > 0) {
+            $type = $message->getHeaders()->get('content-type')->getType();
+            if ($type != 'multipart/related') {
+                $parts = $message->getBody()->getParts();
+                $htmlPart = null;
+                $textPart = null;
+
+                // locate HTML body
+                foreach ($parts as $part) {
+                    foreach ($part->getHeadersArray() as $header) {
+                        if ($header[0] == 'Content-Type' && strpos($header[1], 'text/html') === 0) {
+                            $htmlPart = $part;
+                        } elseif ($header[0] == 'Content-Type' && strpos($header[1], 'text/plain') === 0) {
+                            $textPart = $part;
+                        }
+                    }
+                }
+
+                if (!empty($textPart) && !empty($htmlPart)) {
+                    $content = new MimeMessage();
+                    $content->addPart($textPart);
+                    $content->addPart($htmlPart);
+                    $contentPart = new MimePart($content->generateMessage());
+                    $contentPart->type = "multipart/alternative;\n boundary=\"" .
+                        $content->getMime()->boundary() . '"';
+                    $message->getBody()->setParts([$contentPart]);
+                } else {
+                    if (empty($textPart)) {
+                        $message->getBody()->setParts([$htmlPart]);
+                    } else {
+                        $message->getBody()->setParts([$textPart]);
+                    }
+                }
+
+            }
+
+            foreach ($attachments as $attachment) {
+                if($attachment instanceof AttachmentInterface::class){
+                    $at = new MimePart($attachment->getContent());
+                    $at->type = $attachment->getType();
+                    $at->filename = $attachment->getFileName();
+                    $at->encoding = Mime::ENCODING_BASE64;
+                    $at->disposition = Mime::DISPOSITION_ATTACHMENT;
+
+                    $message->getBody()->addPart($at);
+                }
+            }
+
+            // force multipart/alternative content type
+            if ($type != 'multipart/related') {
+                $message->getHeaders()->get('content-type')->setType('multipart/related')
+                    ->addParameter('boundary', $message->getBody()->getMime()->boundary());
+            }
+        }
+        return $message;
     }
 }
